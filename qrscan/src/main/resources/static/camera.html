@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cámara y Carga de Archivos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+        }
+
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+
+        #preview {
+            width: 100%;
+            max-height: 40vh;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        #foto {
+            width: 100%;
+            margin-top: 1rem;
+            border-radius: 8px;
+            max-height: 300px;
+            object-fit: contain;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .file-input-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-label {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+
+        .file-label:hover {
+            background: #218838;
+        }
+
+        .resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        .resultado.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .resultado.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .resultado.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔍 Detector de QR y Códigos de Barras</h1>
+
+    <!-- Sección Cámara -->
+    <div class="section">
+        <h2>📸 Capturar con Cámara</h2>
+        <video id="preview" autoplay playsinline></video>
+        <div>
+            <button id="snap">📷 Tomar Foto</button>
+            <button id="switchCamera">🔄 Cambiar Cámara</button>
+        </div>
+    </div>
+
+    <!-- Sección Cargar Archivo -->
+    <div class="section">
+        <h2>📁 Cargar desde Archivo</h2>
+        <div class="file-input-container">
+            <input type="file" id="fileInput" accept="image/*">
+            <label for="fileInput" class="file-label">📎 Seleccionar Imagen</label>
+        </div>
+        <button id="uploadFile" disabled>⬆️ Subir Imagen</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Procesando imagen...</p>
+    </div>
+
+    <!-- Resultado -->
+    <div id="resultado"></div>
+
+    <!-- Preview de la imagen -->
+    <img id="foto" alt="captura" style="display: none;" />
+</div>
+
+<script>
+    const video = document.getElementById('preview');
+    const snapButton = document.getElementById('snap');
+    const switchButton = document.getElementById('switchCamera');
+    const img = document.getElementById('foto');
+    const fileInput = document.getElementById('fileInput');
+    const uploadButton = document.getElementById('uploadFile');
+    const loading = document.getElementById('loading');
+    const resultado = document.getElementById('resultado');
+
+    let currentStream = null;
+    let currentFacingMode = 'environment'; // 'user' para frontal, 'environment' para trasera
+    let selectedFile = null;
+
+    // Función para mostrar resultados
+    function mostrarResultado(mensaje, tipo = 'info') {
+        resultado.innerHTML = `<div class="resultado ${tipo}">${mensaje}</div>`;
+    }
+
+    // Función para mostrar/ocultar loading
+    function toggleLoading(show) {
+        loading.style.display = show ? 'block' : 'none';
+    }
+
+    // 1. Inicializar cámara
+    function inicializarCamara() {
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacingMode }
+        })
+            .then(stream => {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                currentStream = stream;
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error('Error accediendo a la cámara:', err);
+                mostrarResultado('❌ Sin acceso a la cámara: ' + err.message, 'error');
+            });
+    }
+
+    // Inicializar cámara al cargar
+    inicializarCamara();
+
+    // 2. Cambiar entre cámara frontal y trasera
+    switchButton.addEventListener('click', () => {
+        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        inicializarCamara();
+    });
+
+    // 3. Capturar foto de la cámara
+    snapButton.addEventListener('click', () => {
+        const canvas = Object.assign(document.createElement('canvas'), {
+            width: video.videoWidth,
+            height: video.videoHeight
+        });
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        canvas.toBlob(blob => {
+            mostrarImagen(blob);
+            enviarImagen(blob, 'captura.png');
+        }, 'image/jpeg', 0.8);
+    });
+
+    // 4. Manejar selección de archivo
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Validar que sea una imagen
+            if (!file.type.startsWith('image/')) {
+                mostrarResultado('❌ Por favor selecciona un archivo de imagen válido', 'error');
+                return;
+            }
+
+            // Validar tamaño (máximo 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                mostrarResultado('❌ La imagen es demasiado grande. Máximo 10MB', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            uploadButton.disabled = false;
+            mostrarResultado(`✅ Archivo seleccionado: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`, 'success');
+
+            // Mostrar preview del archivo
+            const reader = new FileReader();
+            reader.onload = (e) => mostrarImagen(null, e.target.result);
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 5. Subir archivo seleccionado
+    uploadButton.addEventListener('click', () => {
+        if (selectedFile) {
+            enviarImagen(selectedFile, selectedFile.name);
+        }
+    });
+
+    // Función para mostrar imagen
+    function mostrarImagen(blob, dataUrl) {
+        if (blob) {
+            img.src = URL.createObjectURL(blob);
+        } else if (dataUrl) {
+            img.src = dataUrl;
+        }
+        img.style.display = 'block';
+    }
+
+    // Función para enviar imagen al servidor
+    function enviarImagen(fileData, fileName) {
+        toggleLoading(true);
+        mostrarResultado('🔄 Procesando imagen...', 'info');
+
+        const formData = new FormData();
+        formData.append('photo', fileData, fileName);
+
+        fetch('/api/photo', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                toggleLoading(false);
+
+                if (data.status === 'success') {
+                    mostrarResultado(`🎉 <strong>Código detectado:</strong><br>${data.data}`, 'success');
+                } else if (data.status === 'not_found') {
+                    mostrarResultado('🔍 No se detectó ningún código QR ni de barras en la imagen', 'info');
+                } else {
+                    mostrarResultado(`⚠️ ${data.message || 'Respuesta inesperada del servidor'}`, 'error');
+                }
+            })
+            .catch(error => {
+                toggleLoading(false);
+                console.error('Error:', error);
+                mostrarResultado(`❌ Error al procesar la imagen: ${error.message}`, 'error');
+            });
+    }
+
+    // Limpiar recursos al cerrar la página
+    window.addEventListener('beforeunload', () => {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+        }
+    });
+</script>
+</body>
+</html>
