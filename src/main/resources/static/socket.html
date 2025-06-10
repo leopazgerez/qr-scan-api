@@ -264,7 +264,7 @@
     function connectWebSocket() {
         try {
             // Intenta conectar al endpoint principal
-            socket = new WebSocket('ws://qr-scan-api.onrender.com/ws');
+            socket = new WebSocket('wss://qr-scan-api.onrender.com/ws');
 
             socket.onopen = function(event) {
                 console.log('Conectado al WebSocket');
