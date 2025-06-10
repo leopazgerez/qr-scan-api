@@ -21,8 +21,9 @@ import java.util.Map;
 public class PhotoController {
     @Autowired
     private SocketConnectionHandler socketHandler;
+
     @PostMapping("/photo/{id}")
-    public ResponseEntity<?> processPhoto(@RequestParam("photo") MultipartFile file,@PathVariable String id) {
+    public ResponseEntity<?> processPhoto(@RequestParam("photo") MultipartFile file, @PathVariable String id) {
 
         // Validar archivo
         if (file.isEmpty()) {
@@ -49,7 +50,9 @@ public class PhotoController {
             if (result != null) {
                 response.put("status", "success");
                 response.put("data", result);
-                socketHandler.sendMessageToClient(id,result);
+                if (id != null) {
+                    socketHandler.sendMessageToClient(id, result);
+                }
             } else {
                 response.put("status", "not_found");
                 response.put("message", "No se detectó ningún código QR ni de barras en la imagen.");
