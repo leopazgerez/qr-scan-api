@@ -23,7 +23,7 @@ public class PhotoController {
     private SocketConnectionHandler socketHandler;
 
     @PostMapping("/photo/{id}")
-    public ResponseEntity<?> processPhoto(@RequestParam("photo") MultipartFile file, @PathVariable String id) {
+    public ResponseEntity<?> processPhotoForUser(@RequestParam("photo") MultipartFile file) {
 
         // Validar archivo
         if (file.isEmpty()) {
@@ -50,9 +50,47 @@ public class PhotoController {
             if (result != null) {
                 response.put("status", "success");
                 response.put("data", result);
-                if (id != null) {
-                    socketHandler.sendMessageToClient(id, result);
-                }
+            } else {
+                response.put("status", "not_found");
+                response.put("message", "No se detectó ningún código QR ni de barras en la imagen.");
+            }
+            return ResponseEntity.ok(response);
+
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("Error al leer la imagen: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error procesando imagen: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/photo")
+    public ResponseEntity<?> processPhoto(@RequestParam("photo") MultipartFile file) {
+
+        // Validar archivo
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("No se recibió ningún archivo.");
+        }
+
+        // Validar tipo de archivo
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            return ResponseEntity.badRequest().body("El archivo debe ser una imagen.");
+        }
+
+        try {
+            BufferedImage imagen = ImageIO.read(file.getInputStream());
+
+            if (imagen == null) {
+                return ResponseEntity.badRequest().body("No se pudo leer la imagen. Formato no válido.");
+            }
+
+            // Intentar detectar código con diferentes configuraciones
+            String result = detectCode(imagen);
+
+            Map<String, String> response = new HashMap<>();
+            if (result != null) {
+                response.put("status", "success");
+                response.put("data", result);
             } else {
                 response.put("status", "not_found");
                 response.put("message", "No se detectó ningún código QR ni de barras en la imagen.");
