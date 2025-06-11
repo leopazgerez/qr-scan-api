@@ -10,6 +10,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -25,7 +26,16 @@ public class SocketConnectionHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         super.afterConnectionEstablished(session);
+        Map<String, String> params = getQueryParams(session.getUri().getQuery());
+        String socketId = params.get("socketid");
 
+        if (socketId != null) {
+            sessions.put(socketId, session);
+            logger.info("✅ Cliente conectado con ID: {}", socketId);
+        } else {
+            logger.error("⚠️ No se proporcionó 'socketid' en la URL.");
+            session.close();
+        }
         String sessionId = session.getId();
         sessions.put(sessionId, session);
 
@@ -40,6 +50,19 @@ public class SocketConnectionHandler extends TextWebSocketHandler {
 
         // Notificar a todos los demás clientes sobre la nueva conexión
         broadcastMessage("Un nuevo cliente se ha conectado. Total: " + sessions.size(), sessionId);
+    }
+
+    private Map<String, String> getQueryParams(String query) {
+        Map<String, String> map = new ConcurrentHashMap<>();
+        if (query != null) {
+            for (String param : query.split("&")) {
+                String[] parts = param.split("=");
+                if (parts.length == 2) {
+                    map.put(parts[0], parts[1]);
+                }
+            }
+        }
+        return map;
     }
 
     @Override
